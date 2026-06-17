@@ -1,0 +1,8 @@
+dnspython
+python-whois
+requests
+shodan
+rich
+click
+pyyaml
+beautifulsoup4
