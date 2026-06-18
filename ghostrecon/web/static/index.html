@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GhostRecon — Passive OSINT Recon</title>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #F2F3F5;
+    --surface: #FFFFFF;
+    --surface2: #F0F1F3;
+    --border: #D8DCE3;
+    --border-hover: #B0B6C0;
+    --text: #2C2F36;
+    --text-dim: #7A7F8C;
+    --accent: #0F8B72;
+    --accent-dim: rgba(15, 139, 114, 0.07);
+    --accent-border: rgba(15, 139, 114, 0.2);
+    --red: #C24545;
+    --orange: #B8732E;
+    --yellow: #9F8430;
+    --green: #2F8E64;
+    --blue: #4378A8;
+    --radius: 8px;
+    --shadow: 0 1px 3px rgba(0,0,0,0.06);
+    --toggle-bg: #D8DCE3;
+    --toggle-icon: #7A7F8C;
+  }
+
+  .dark {
+    --bg: #0D0E12;
+    --surface: #15171E;
+    --surface2: #1A1C24;
+    --border: #22252F;
+    --border-hover: #333848;
+    --text: #D4D6DC;
+    --text-dim: #7A7F8C;
+    --accent: #1AAB8C;
+    --accent-dim: rgba(26, 171, 140, 0.1);
+    --accent-border: rgba(26, 171, 140, 0.25);
+    --red: #DB5A5A;
+    --orange: #D98A3C;
+    --yellow: #C9A84C;
+    --green: #46A978;
+    --blue: #5A8FBF;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3);
+    --toggle-bg: #1A1C24;
+    --toggle-icon: #C9A84C;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    line-height: 1.6;
+    min-height: 100vh;
+    transition: background 0.2s, color 0.2s;
+  }
+  .container { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem; }
+
+  /* Theme toggle */
+  .theme-toggle {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: 100;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 0.4rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    transition: background 0.2s, border-color 0.2s;
+    line-height: 1;
+    font-size: 0.9rem;
+  }
+  .theme-toggle:hover { border-color: var(--border-hover); }
+  .theme-toggle span { transition: opacity 0.15s; }
+
+  /* Header */
+  .header {
+    text-align: center;
+    padding: 2.5rem 2rem 2rem;
+    margin-bottom: 2rem;
+  }
+  .logo {
+    font-size: 1.6rem;
+    font-weight: 800;
+    letter-spacing: 4px;
+    color: var(--accent);
+  }
+  .subtitle { color: var(--text-dim); font-size: 0.85rem; margin-top: 0.2rem; }
+  .version {
+    display: inline-block;
+    margin-top: 0.5rem;
+    font-size: 0.7rem;
+    padding: 0.1rem 0.55rem;
+    border-radius: 3px;
+    background: var(--accent-dim);
+    color: var(--accent);
+    font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+    border: 1px solid var(--accent-border);
+  }
+
+  /* Card */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1rem;
+    box-shadow: var(--shadow);
+    transition: border-color 0.15s, background 0.2s;
+  }
+  .card-title {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--accent);
+    margin-bottom: 0.85rem;
+  }
+
+  /* Form */
+  .form-group { margin-bottom: 0.85rem; }
+  .form-group:last-child { margin-bottom: 0; }
+  label {
+    display: block;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-dim);
+    margin-bottom: 0.3rem;
+  }
+  input[type="text"] {
+    width: 100%;
+    padding: 0.6rem 0.8rem;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    color: var(--text);
+    font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+    font-size: 0.88rem;
+    outline: none;
+    transition: border-color 0.15s, background 0.2s;
+  }
+  input[type="text"]:focus { border-color: var(--accent); }
+  input[type="text"]::placeholder { color: var(--text-dim); opacity: 0.4; }
+  .input-hint { font-size: 0.7rem; color: var(--text-dim); margin-top: 0.2rem; opacity: 0.7; }
+
+  /* API Keys grid */
+  .api-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+  @media (max-width: 600px) { .api-grid { grid-template-columns: 1fr; } }
+
+  /* Key links */
+  .key-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-top: 0.6rem;
+  }
+  .key-link {
+    font-size: 0.65rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 3px;
+    color: var(--text-dim);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    text-decoration: none;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .key-link:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Modules */
+  .module-grid { display: flex; flex-wrap: wrap; gap: 0.45rem; }
+  .module-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.75rem;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--text-dim);
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+    user-select: none;
+  }
+  .module-chip:hover { border-color: var(--border-hover); color: var(--text); }
+  .module-chip.active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-dim);
+  }
+  .module-chip input { display: none; }
+  .module-chip .check {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 13px; height: 13px;
+    border: 1.5px solid var(--border);
+    border-radius: 3px;
+    font-size: 0.55rem;
+    transition: all 0.15s;
+    flex-shrink: 0;
+  }
+  .module-chip.active .check {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.6rem 1.25rem;
+    border: none;
+    border-radius: 5px;
+    font-family: inherit;
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: background 0.15s, box-shadow 0.15s;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+  }
+  .btn-primary:hover { box-shadow: 0 2px 8px rgba(26, 171, 140, 0.3); }
+  .btn-primary:disabled { opacity: 0.35; cursor: not-allowed; box-shadow: none; }
+  .btn-secondary {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+  .btn-secondary:hover { border-color: var(--border-hover); }
+  .btn-row { display: flex; gap: 0.65rem; align-items: center; flex-wrap: wrap; }
+
+  /* Spinner */
+  .spinner {
+    display: inline-block; width: 15px; height: 15px;
+    border: 2px solid rgba(255,255,255,0.25);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.55s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Status */
+  .status-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.85rem;
+    border-radius: 5px;
+    font-size: 0.8rem;
+    margin-top: 0.85rem;
+  }
+  .status-bar.idle { background: var(--surface2); color: var(--text-dim); }
+  .status-bar.running { background: var(--accent-dim); color: var(--accent); }
+  .status-bar.done { background: rgba(70, 169, 120, 0.1); color: var(--green); }
+  .status-bar.error { background: rgba(219, 90, 90, 0.1); color: var(--red); }
+  .status-bar.saved { background: rgba(70, 169, 120, 0.1); color: var(--green); }
+
+  /* Results */
+  #results { margin-top: 1.25rem; }
+  .result-section { margin-bottom: 0.75rem; }
+  .result-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.6rem 1rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    cursor: pointer;
+    user-select: none;
+    font-size: 0.85rem;
+    font-weight: 600;
+    transition: border-color 0.15s, background 0.2s;
+  }
+  .result-section-header:hover { border-color: var(--border-hover); }
+  .result-section-header.open {
+    border-radius: var(--radius) var(--radius) 0 0;
+    border-bottom-color: transparent;
+  }
+  .result-section-header .arrow { color: var(--text-dim); transition: transform 0.15s; font-size: 0.7rem; }
+  .result-section-header.open .arrow { transform: rotate(180deg); }
+  .result-section-body {
+    padding: 0.85rem 1rem;
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 var(--radius) var(--radius);
+    font-size: 0.82rem;
+    display: none;
+    overflow-x: auto;
+    transition: background 0.2s;
+  }
+  .result-section-body.open { display: block; }
+
+  .result-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.25rem 0;
+  }
+  .result-tag {
+    display: inline-block;
+    padding: 0.08rem 0.4rem;
+    border-radius: 3px;
+    font-size: 0.6rem;
+    font-weight: 700;
+    font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+    flex-shrink: 0;
+  }
+  .tag-info { background: rgba(90, 143, 191, 0.12); color: var(--blue); border: 1px solid rgba(90, 143, 191, 0.25); }
+  .tag-critical { background: rgba(219, 90, 90, 0.12); color: var(--red); border: 1px solid rgba(219, 90, 90, 0.25); }
+  .tag-high { background: rgba(217, 138, 60, 0.12); color: var(--orange); border: 1px solid rgba(217, 138, 60, 0.25); }
+  .tag-medium { background: rgba(201, 168, 76, 0.12); color: var(--yellow); border: 1px solid rgba(201, 168, 76, 0.25); }
+  .tag-low { background: rgba(70, 169, 120, 0.12); color: var(--green); border: 1px solid rgba(70, 169, 120, 0.25); }
+
+  .result-value {
+    color: var(--text-dim);
+    word-break: break-all;
+    font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+    font-size: 0.77rem;
+    line-height: 1.5;
+  }
+  .result-label {
+    font-weight: 600;
+    color: var(--text-dim);
+    margin: 0.4rem 0 0.15rem;
+    font-size: 0.78rem;
+  }
+
+  .result-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.78rem;
+  }
+  .result-table th {
+    text-align: left;
+    padding: 0.45rem 0.55rem;
+    font-weight: 600;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--text-dim);
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+  }
+  .result-table td {
+    padding: 0.4rem 0.55rem;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+  }
+  .result-table tr:last-child td { border-bottom: none; }
+  .result-table a { color: var(--accent); text-decoration: none; }
+  .result-table a:hover { text-decoration: underline; }
+
+  .no-data { color: var(--text-dim); font-style: italic; padding: 0.3rem 0; font-size: 0.8rem; }
+
+  /* Report link */
+  .report-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-top: 0.85rem;
+    padding: 0.55rem 1.1rem;
+    background: var(--surface);
+    border: 1px solid var(--accent-border);
+    border-radius: var(--radius);
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 0.82rem;
+    transition: background 0.15s;
+  }
+  .report-link:hover { background: var(--accent-dim); }
+
+  /* Summary cards */
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 0.65rem;
+    margin-bottom: 1.25rem;
+  }
+  .summary-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.85rem;
+    text-align: center;
+  }
+  .summary-value { font-size: 1.5rem; font-weight: 800; line-height: 1.2; }
+  .summary-label { font-size: 0.6rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.3px; margin-top: 0.15rem; }
+
+  /* Footer */
+  .footer {
+    text-align: center;
+    padding: 1.5rem 0;
+    margin-top: 2.5rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    transition: border-color 0.2s;
+  }
+  .footer strong { color: var(--text); font-weight: 600; }
+</style>
+</head>
+<body>
+<button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Toggle theme">
+  <span id="themeIcon">&#9790;</span>
+</button>
+
+<div class="container">
+  <div class="header">
+    <div class="logo">GHOSTRECON</div>
+    <div class="subtitle">Passive OSINT Reconnaissance Engine</div>
+    <span class="version">v1.0</span>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Target</div>
+    <div class="form-group">
+      <label for="target">Domain</label>
+      <input type="text" id="target" placeholder="example.com" autocomplete="off" spellcheck="false">
+      <div class="input-hint">Enter the domain you want to scan</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">API Keys <span style="font-weight:400;text-transform:none;color:var(--text-dim);font-size:0.68rem;">&mdash; optional, stored locally</span></div>
+    <div class="api-grid">
+      <div class="form-group">
+        <label for="key-shodan">Shodan</label>
+        <input type="text" id="key-shodan" placeholder="Shodan API key">
+      </div>
+      <div class="form-group">
+        <label for="key-vt">VirusTotal</label>
+        <input type="text" id="key-vt" placeholder="VirusTotal API key">
+      </div>
+      <div class="form-group">
+        <label for="key-hibp">HaveIBeenPwned</label>
+        <input type="text" id="key-hibp" placeholder="HIBP API key">
+      </div>
+      <div class="form-group">
+        <label for="key-github">GitHub Token</label>
+        <input type="text" id="key-github" placeholder="GitHub personal token">
+      </div>
+    </div>
+    <div class="key-links">
+      <a class="key-link" href="https://account.shodan.io" target="_blank">Get Shodan key</a>
+      <a class="key-link" href="https://www.virustotal.com/gui/my-apikey" target="_blank">Get VirusTotal key</a>
+      <a class="key-link" href="https://haveibeenpwned.com/API/Key" target="_blank">Get HIBP key</a>
+      <a class="key-link" href="https://github.com/settings/tokens" target="_blank">Get GitHub token</a>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Modules</div>
+    <div class="module-grid" id="modules">
+      <label class="module-chip active"><input type="checkbox" value="dns" checked><span class="check">&#10003;</span> DNS</label>
+      <label class="module-chip active"><input type="checkbox" value="whois" checked><span class="check">&#10003;</span> WHOIS</label>
+      <label class="module-chip active"><input type="checkbox" value="subdomains" checked><span class="check">&#10003;</span> Subdomains</label>
+      <label class="module-chip active"><input type="checkbox" value="shodan" checked><span class="check">&#10003;</span> Shodan</label>
+      <label class="module-chip active"><input type="checkbox" value="hibp" checked><span class="check">&#10003;</span> HIBP</label>
+      <label class="module-chip active"><input type="checkbox" value="github" checked><span class="check">&#10003;</span> GitHub</label>
+      <label class="module-chip active"><input type="checkbox" value="virustotal" checked><span class="check">&#10003;</span> VirusTotal</label>
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn-primary" id="runBtn" onclick="runScan()">&#9654; Run Scan</button>
+    <button class="btn btn-secondary" onclick="saveKeys()">Save Keys</button>
+  </div>
+
+  <div class="status-bar idle" id="status">
+    <span>&#9679;</span> Ready
+  </div>
+
+  <div id="results"></div>
+  <div id="reportLink"></div>
+
+  <div class="footer">
+    <strong>GhostRecon v1.0</strong> &middot; GhostChain Project &middot; Passive OSINT &mdash; Ethical Use Only
+  </div>
+</div>
+
+<script>
+function toggleTheme() {
+  const html = document.documentElement;
+  const isDark = html.classList.toggle('dark');
+  document.getElementById('themeIcon').innerHTML = isDark ? '&#9681;' : '&#9790;';
+  localStorage.setItem('ghostrecon-theme', isDark ? 'dark' : 'light');
+}
+
+const saved = localStorage.getItem('ghostrecon-theme');
+if (saved === 'dark') {
+  document.documentElement.classList.add('dark');
+  document.getElementById('themeIcon').innerHTML = '&#9681;';
+}
+
+document.querySelectorAll('.module-chip').forEach(chip => {
+  chip.addEventListener('click', function() {
+    const cb = this.querySelector('input[type=checkbox]');
+    cb.checked = !cb.checked;
+    this.classList.toggle('active', cb.checked);
+  });
+});
+
+async function loadConfig() {
+  try {
+    const res = await fetch('/api/config');
+    const data = await res.json();
+    const keys = data.api_keys || {};
+    if (keys.shodan) document.getElementById('key-shodan').value = keys.shodan;
+    if (keys.virustotal) document.getElementById('key-vt').value = keys.virustotal;
+    if (keys.hibp) document.getElementById('key-hibp').value = keys.hibp;
+    if (keys.github) document.getElementById('key-github').value = keys.github;
+  } catch (e) {}
+}
+loadConfig();
+
+async function saveKeys() {
+  const api_keys = {
+    shodan: document.getElementById('key-shodan').value.trim(),
+    virustotal: document.getElementById('key-vt').value.trim(),
+    hibp: document.getElementById('key-hibp').value.trim(),
+    github: document.getElementById('key-github').value.trim(),
+  };
+  try {
+    await fetch('/api/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ api_keys }),
+    });
+    setStatus('saved', 'API keys saved to config.yaml');
+  } catch (e) {
+    setStatus('error', 'Failed to save API keys');
+  }
+}
+
+function setStatus(type, msg) {
+  const el = document.getElementById('status');
+  el.className = 'status-bar ' + type;
+  const icons = { idle: '&#9679;', running: '&#9699;', done: '&#10003;', error: '&#10007;', saved: '&#10003;' };
+  el.innerHTML = '<span>' + (icons[type] || '&#9679;') + '</span> ' + msg;
+}
+
+async function runScan() {
+  const target = document.getElementById('target').value.trim().toLowerCase();
+  if (!target) { setStatus('error', 'Enter a target domain'); return; }
+
+  const modules = [];
+  document.querySelectorAll('.module-chip.active input[type=checkbox]').forEach(cb => modules.push(cb.value));
+  if (!modules.length) { setStatus('error', 'Select at least one module'); return; }
+
+  const api_keys = {
+    shodan: document.getElementById('key-shodan').value.trim(),
+    virustotal: document.getElementById('key-vt').value.trim(),
+    hibp: document.getElementById('key-hibp').value.trim(),
+    github: document.getElementById('key-github').value.trim(),
+  };
+
+  const btn = document.getElementById('runBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Scanning...';
+  setStatus('running', 'Scanning ' + target + '...');
+  document.getElementById('results').innerHTML = '';
+  document.getElementById('reportLink').innerHTML = '';
+
+  try {
+    const res = await fetch('/api/scan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target, modules, api_keys }),
+    });
+    const data = await res.json();
+
+    if (data.status === 'complete') {
+      setStatus('done', 'Scan complete');
+      renderResults(data.results);
+      if (data.report) {
+        document.getElementById('reportLink').innerHTML =
+          '<a class="report-link" href="' + data.report + '" target="_blank">&#8599; View Full HTML Report</a>';
+      }
+    } else if (data.status === 'error') {
+      setStatus('error', data.error || 'Scan failed');
+      if (data.results) renderResults(data.results);
+    } else {
+      setStatus('error', data.error || 'Unknown error');
+    }
+  } catch (e) {
+    setStatus('error', 'Connection error');
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '&#9654; Run Scan';
+}
+
+function renderResults(results) {
+  const el = document.getElementById('results');
+  let s = '<div class="summary-grid">';
+  const stats = {
+    subdomains: results.subdomains?.confirmed_live?.length || 0,
+    ports: results.shodan?.ports?.length || 0,
+    breaches: results.hibp?.total_breaches || 0,
+    malicious: results.virustotal?.malicious_count || 0,
+    github: results.github_dorks?.total_findings || 0,
+  };
+  const cs = {
+    subdomains: stats.subdomains > 0 ? '#D98A3C' : '#5A8FBF',
+    ports: stats.ports > 0 ? '#D98A3C' : '#5A8FBF',
+    breaches: stats.breaches > 0 ? '#DB5A5A' : '#46A978',
+    malicious: stats.malicious > 0 ? '#DB5A5A' : '#46A978',
+    github: stats.github > 0 ? '#D98A3C' : '#46A978',
+  };
+  const labels = { subdomains: 'Subdomains', ports: 'Open Ports', breaches: 'Breaches', malicious: 'Malicious', github: 'GitHub Leaks' };
+  for (const [k, v] of Object.entries(stats))
+    s += '<div class="summary-card"><div class="summary-value" style="color:' + cs[k] + '">' + v + '</div><div class="summary-label">' + labels[k] + '</div></div>';
+  s += '</div>';
+  el.innerHTML = s;
+
+  const order = ['dns', 'whois', 'subdomains', 'shodan', 'hibp', 'github', 'virustotal'];
+  const titles = {
+    dns: 'DNS Records', whois: 'WHOIS Information', subdomains: 'Subdomain Enumeration',
+    shodan: 'Shodan &mdash; Open Ports &amp; Services', hibp: 'HaveIBeenPwned &mdash; Breach Check',
+    github: 'GitHub Dorking', virustotal: 'VirusTotal &mdash; Domain Reputation',
+  };
+
+  for (const mod of order) {
+    const d = results[mod];
+    if (!d) continue;
+    const skipped = d.api_key_missing || d.error === 'Skipped (no API key)';
+    let body = skipped ? '<div class="no-data">API key not configured</div>' :
+               d.error ? '<div class="no-data">' + d.error + '</div>' : renderModule(mod, d);
+    el.innerHTML += '<div class="result-section">' +
+      '<div class="result-section-header" onclick="this.classList.toggle(\'open\');this.nextElementSibling.classList.toggle(\'open\')">' +
+      '<span>' + (titles[mod] || mod) + '</span><span class="arrow">&#9660;</span></div>' +
+      '<div class="result-section-body">' + body + '</div></div>';
+  }
+}
+
+function renderModule(mod, data) {
+  if (mod === 'dns') {
+    const records = data.records || {};
+    const count = Object.values(records).reduce((a, b) => a + b.length, 0);
+    if (!count) return '<div class="no-data">No DNS records found</div>';
+    let h = '';
+    for (const [rtype, recs] of Object.entries(records)) {
+      h += '<div class="result-label">' + rtype + ' (' + recs.length + ')</div>';
+      for (const r of recs)
+        h += '<div class="result-item"><span class="result-tag tag-info">' + rtype + '</span><span class="result-value">' + r + '</span></div>';
+    }
+    return h;
+  }
+
+  if (mod === 'whois') {
+    const fields = [['Registrar', data.registrar], ['Created', data.creation_date], ['Expires', data.expiration_date], ['Organization', data.registrant_org]];
+    let h = '', has = false;
+    for (const [label, value] of fields) {
+      if (value) { has = true; h += '<div class="result-item"><span class="result-tag tag-info">' + label + '</span><span class="result-value">' + value + '</span></div>'; }
+    }
+    if (data.expiring_soon !== undefined) {
+      has = true;
+      h += '<div class="result-item"><span class="result-tag ' + (data.expiring_soon ? 'tag-critical' : 'tag-low') + '">' + (data.expiring_soon ? 'Expiring Soon' : 'Not Expiring') + '</span></div>';
+    }
+    if (data.name_servers?.length) {
+      has = true;
+      h += '<div class="result-label">Name Servers</div>';
+      for (const ns of data.name_servers)
+        h += '<div class="result-item"><span class="result-value">' + ns + '</span></div>';
+    }
+    return has ? h : '<div class="no-data">No WHOIS data</div>';
+  }
+
+  if (mod === 'subdomains') {
+    const live = data.confirmed_live || [];
+    let h = live.length
+      ? '<table class="result-table"><thead><tr><th>Subdomain</th><th>IP Addresses</th></tr></thead><tbody>' +
+        live.map(s => '<tr><td style="font-family:SF Mono,Cascadia Code,Consolas,monospace">' + s.subdomain + '</td><td>' + ((s.ips || []).join(', ')) + '</td></tr>').join('') +
+        '</tbody></table>'
+      : '<div class="no-data">No live subdomains discovered</div>';
+    h += '<div style="margin-top:0.35rem;font-size:0.7rem;color:var(--text-dim)">crt.sh: ' + (data.crt_sh_count || 0) + ' candidates &middot; Brute-force: ' + (data.bruteforce_found?.length || 0) + ' resolved</div>';
+    return h;
+  }
+
+  if (mod === 'shodan') {
+    if (data.api_key_missing) return '<div class="no-data">Shodan API key not configured</div>';
+    const svcs = data.services || [];
+    if (!svcs.length) return '<div class="no-data">No services discovered</div>';
+    let h = '<table class="result-table"><thead><tr><th>Port</th><th>Proto</th><th>Service</th><th>Product</th><th>Version</th></tr></thead><tbody>' +
+      svcs.map(s => '<tr><td>' + (s.port||'') + '</td><td>' + (s.protocol||'') + '</td><td>' + (s.service||'') + '</td><td>' + (s.product||'') + '</td><td>' + (s.version||'') + '</td></tr>').join('') +
+      '</tbody></table>';
+    const vulns = data.vulnerabilities || [];
+    if (vulns.length) {
+      h += '<div style="display:flex;flex-wrap:wrap;gap:0.3rem;margin-top:0.5rem;">';
+      for (const v of vulns) h += '<span class="result-tag tag-critical">' + v + '</span>';
+      h += '</div>';
+    }
+    return h;
+  }
+
+  if (mod === 'hibp') {
+    if (data.api_key_missing) return '<div class="no-data">HIBP API key not configured</div>';
+    const breaches = data.breaches || [];
+    if (!breaches.length) return '<div class="no-data">No breaches detected</div>';
+    return '<table class="result-table"><thead><tr><th>Breach</th><th>Domain</th><th>Date</th><th>Data Classes</th></tr></thead><tbody>' +
+      breaches.map(b => '<tr><td><strong>' + (b.name||'') + '</strong></td><td>' + (b.domain||'') + '</td><td>' + (b.date||'') + '</td><td style="font-size:0.68rem;">' + ((b.data_classes||[]).join(', ')) + '</td></tr>').join('') +
+      '</tbody></table>';
+  }
+
+  if (mod === 'github') {
+    if (data.api_key_missing) return '<div class="no-data">GitHub token not configured</div>';
+    const items = data.results || [];
+    if (!items.length) return '<div class="no-data">No exposed secrets found</div>';
+    return '<table class="result-table"><thead><tr><th>Keyword</th><th>Repository</th><th>File</th></tr></thead><tbody>' +
+      items.map(item => {
+        if (item.error === 'Rate limited')
+          return '<tr><td><span class="result-tag tag-medium">' + (item.keyword||'') + '</span></td><td colspan="2" style="color:' + (document.documentElement.classList.contains('dark') ? '#C9A84C' : '#9F8430') + ';">Rate limited &mdash; add token</td></tr>';
+        return '<tr><td><span class="result-tag tag-medium">' + (item.keyword||'') + '</span></td><td style="font-size:0.73rem;">' + (item.repository||'') + '</td><td><a href="' + (item.url||'#') + '" target="_blank">' + (item.file||'') + '</a></td></tr>';
+      }).join('') +
+      '</tbody></table>';
+  }
+
+  if (mod === 'virustotal') {
+    if (data.api_key_missing) return '<div class="no-data">VirusTotal API key not configured</div>';
+    const risk = data.risk_level || 'UNKNOWN';
+    const rc = { CRITICAL: '#DB5A5A', HIGH: '#D98A3C', MEDIUM: '#C9A84C', LOW: '#46A978', INFO: '#5A8FBF', UNKNOWN: '#7A7F8C' };
+    return '<div class="summary-grid">' +
+      '<div class="summary-card"><div class="summary-value" style="color:' + (rc[risk]||'#7A7F8C') + '">' + risk + '</div><div class="summary-label">Risk Level</div></div>' +
+      '<div class="summary-card"><div class="summary-value" style="color:#DB5A5A">' + (data.malicious_count||0) + '</div><div class="summary-label">Malicious</div></div>' +
+      '<div class="summary-card"><div class="summary-value" style="color:#C9A84C">' + (data.suspicious_count||0) + '</div><div class="summary-label">Suspicious</div></div>' +
+      '<div class="summary-card"><div class="summary-value" style="color:#46A978">' + (data.harmless_count||0) + '</div><div class="summary-label">Harmless</div></div></div>' +
+      (data.categories ? '<div style="font-size:0.78rem;line-height:1.7;margin-top:0.5rem;">' + Object.entries(data.categories).map(([k, v]) => '<strong style="color:var(--text-dim);">' + k + ':</strong> <span style="color:var(--text);">' + v + '</span>').join('<br>') + '</div>' : '');
+  }
+
+  return '<div class="no-data">No data</div>';
+}
+</script>
+</body>
+</html>
